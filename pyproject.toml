@@ -72,4 +72,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 # CLI declaration
-tap-github = 'tap_github.tap:cli'
+tap-github = 'tap_github.tap:TapGitHub.cli'
