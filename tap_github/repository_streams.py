@@ -5,9 +5,11 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 from dateutil.parser import parse
+
 from singer_sdk import typing as th  # JSON Schema typing helpers
 from singer_sdk.exceptions import FatalAPIError
 from singer_sdk.helpers.jsonpath import extract_jsonpath
+from singer_sdk.pagination import BaseAPIPaginator, HeaderLinkPaginator
 
 from tap_github.client import GitHubGraphqlStream, GitHubRestStream
 from tap_github.schema_objects import (
@@ -1914,7 +1916,7 @@ class WorkflowRunsStream(GitHubRestStream):
     name = "workflow_runs"
     path = "/repos/{org}/{repo}/actions/runs"
     primary_keys = ["id"]
-    replication_key = "updated_at"
+    replication_key = "created_at"
     parent_stream_type = RepositoryStream
     ignore_parent_replication_key = False
     state_partitioning_keys = ["repo", "org"]
@@ -1961,6 +1963,22 @@ class WorkflowRunsStream(GitHubRestStream):
     def parse_response(self, response: requests.Response) -> Iterable[dict]:
         """Parse the response and return an iterator of result rows."""
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
+
+    def get_url_params(self, context: Optional[Dict], next_page_token: Optional[Any]) -> Dict[str, Any]:
+        since = self.get_starting_timestamp(context)
+        
+        if next_page_token:
+            # we already are in the middle of sync, fetch next page
+            return parse_qs(next_page_token.query)
+        
+        return {
+            "created": ">" + since.isoformat(),
+            "status": "completed" # for ELT we don't care about running workflows
+        }
+
+    # use a simple header link paginator for this collection
+    def get_new_paginator(self) -> BaseAPIPaginator:
+        return HeaderLinkPaginator()
 
     def get_child_context(self, record: dict, context: Optional[dict]) -> dict:
         """Return a child context object from the record and optional provided context.
