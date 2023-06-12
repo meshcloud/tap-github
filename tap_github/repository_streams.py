@@ -1,9 +1,11 @@
 """Repository Stream types classes for tap-github."""
 
+from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 import requests
+import pytz
 from dateutil.parser import parse
 
 from singer_sdk import typing as th  # JSON Schema typing helpers
@@ -1965,15 +1967,23 @@ class WorkflowRunsStream(GitHubRestStream):
         yield from extract_jsonpath(self.records_jsonpath, input=response.json())
 
     def get_url_params(self, context: Optional[Dict], next_page_token: Optional[Any]) -> Dict[str, Any]:
-        since = self.get_starting_timestamp(context)
         
         if next_page_token:
             # we already are in the middle of sync, fetch next page
             return parse_qs(next_page_token.query)
         
+        # Freshly created workflow runs remain in an intermediate state until completion.
+        # In order to collect subsequent updates, we need to make sure we don't move the progress marker too close
+        # to the current time or else we will never collect the updated workflow run.
+        since = self.get_starting_timestamp(context)
+        
+        lookback = self.config.get("workflow_runs_lookback_minutes", 60)
+        now = datetime.now(pytz.utc) - timedelta(minutes=lookback)
+
+        created_cutoff = min(since, now)
+
         return {
-            "created": ">" + since.isoformat(),
-            "status": "completed" # for ELT we don't care about running workflows
+            "created": ">" +  created_cutoff.isoformat()
         }
 
     # use a simple header link paginator for this collection

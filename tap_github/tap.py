@@ -75,6 +75,16 @@ class TapGitHub(Tap):
                 "streams (such as repositories) if it is not selected but children are"
             ),
         ),
+        th.Property(
+            "workflow_runs_lookback_minutes", 
+            th.IntegerType, 
+            description=(
+                "The workflow_runs stream supports incremental loading based on the `created_at` date of a run."
+                "The configurable lookback enables subsequent syncs to collect updates for workflow runs that have "
+                "been created within the specified lookback window. Set this value to the time your workflow runs "
+                "expect to typically finish in. The default is 60 minuts."
+            )
+        )
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
