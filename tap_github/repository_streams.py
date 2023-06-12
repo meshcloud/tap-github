@@ -2014,9 +2014,12 @@ class WorkflowRunJobsStream(GitHubRestStream):
     primary_keys = ["id"]
     parent_stream_type = WorkflowRunsStream
     ignore_parent_replication_key = False
-    state_partitioning_keys = ["repo", "org", "run_id"]
+    # We do not support incremental loading for workflow_run_jobs, they are a child-stream of workflow_runs.
+    # This means there is no point in emitting state paritions (one per workflow run, which can be thousands!) which
+    # will not have a replication_key_value anyway
+    state_partitioning_keys = [] 
     records_jsonpath = "$.jobs[*]"
-
+    
     schema = th.PropertiesList(
         # Parent keys
         th.Property("repo", th.StringType),
